@@ -24,6 +24,9 @@ with t3:
     st.dataframe(pd.DataFrame(columns=['Date','Matchup','Legs','Quoted odds','Predicted joint probability','Result','Stake','Profit / loss']), use_container_width=True)
     st.caption('Persistent storage and backtesting will be added in the next development stage.')
 
+if st.session_state.pop('nfl_training_success', False):
+    st.success('Training complete. V5 can now use the trained models and holdout residuals.')
+
 st.divider()
 st.header('🧠 NFL Game Context Training Lab — V3')
 st.caption('Experimental opponent + scoring-context forecasts. Schedule is downloaded; injuries, weather, odds and correlated simulations are not connected.')
@@ -45,7 +48,8 @@ with st.expander('Train historical NFL player-stat models', expanded=False):
                 st.session_state['nfl_models'] = models
                 st.session_state['nfl_training_data'] = clean
                 st.session_state['nfl_holdout_residuals'] = residuals
-            st.success('Training complete. Review the 2025 holdout comparison below.')
+            st.session_state['nfl_training_success'] = True
+            st.rerun()
         except Exception as exc:
             st.error(f'Training could not complete: {exc}')
             if 'nfl_data_diagnostics' in st.session_state:
