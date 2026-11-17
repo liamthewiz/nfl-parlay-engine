@@ -46,9 +46,9 @@ with t1:
             st.success('Payout threshold met. This does NOT mean the parlay has positive value.')
         st.caption(f'Break-even probability at these odds: {1/combined:.2%}. The true joint probability must be estimated with a validated correlated simulation model.')
 with t2:
-    st.subheader('Game Research — planned integration')
-    st.write('Upcoming fixtures, injury reports, weather, team pace, pass rate over expected, defensive efficiency and matchup-adjusted player distributions will appear here once data feeds are configured.')
-    st.info('No live data source is connected in this prototype.')
+    st.subheader('Game Research — matchup research')
+    st.write('Historical opponent-adjusted player research is available in the Training Lab below. Live schedules, injuries, weather and odds are not yet connected.')
+    st.info('Select an opponent in the forecast section below. Confirm the real upcoming matchup separately; this prototype has no live schedule feed.')
 with t3:
     st.subheader('Paper-trading log')
     st.write('Record completed test parlays here; keep odds and probability estimates captured before kickoff.')
@@ -56,8 +56,8 @@ with t3:
     st.caption('Persistent storage and backtesting will be added in the next development stage.')
 
 st.divider()
-st.header('🧠 NFL Model Training Lab — V1')
-st.caption('Experimental statistical forecasts. No opponent, injuries, live odds, correlated simulations, or verified betting edge yet.')
+st.header('🧠 NFL Matchup Training Lab — V2')
+st.caption('Experimental opponent-adjusted forecasts. No live schedules, injuries, weather, correlated simulations, or verified betting edge yet.')
 with st.expander('Train historical NFL player-stat models', expanded=False):
     st.write('Use the official nflverse player-stats CSV, or upload a previously downloaded copy. Training runs in memory on this Streamlit session.')
     source = st.radio('Data source', ['Download nflverse CSV', 'Upload nflverse CSV'], horizontal=True)
@@ -72,7 +72,7 @@ with st.expander('Train historical NFL player-stat models', expanded=False):
                 st.session_state['nfl_model_report'] = report
                 st.session_state['nfl_models'] = models
                 st.session_state['nfl_training_data'] = clean
-            st.success('Training complete. Review 2025 validation errors below.')
+            st.success('Training complete. Review the 2025 holdout comparison below.')
         except Exception as exc:
             st.error(f'Training could not complete: {exc}')
             if 'nfl_data_diagnostics' in st.session_state:
@@ -85,12 +85,15 @@ if 'nfl_model_report' in st.session_state:
     market = st.selectbox('Forecast market', list(st.session_state['nfl_models']))
     season = st.selectbox('Latest season to forecast from', [2026,2025])
     from model_engine import forecasts
-    fc = forecasts(st.session_state['nfl_models'],st.session_state['nfl_training_data'],market,season)
+    teams = sorted(st.session_state['nfl_training_data']['opponent_team'].dropna().unique().tolist())
+    opponent = st.selectbox('Opponent defense (select the actual upcoming opponent)', ['Not selected'] + teams)
+    fc = forecasts(st.session_state['nfl_models'], st.session_state['nfl_training_data'], market, season,
+                   opponent=None if opponent == 'Not selected' else opponent)
     if fc.empty:
         st.info('No games found for that season. Try 2025, or upload newer weekly data.')
     else:
         st.dataframe(fc.head(100),hide_index=True,use_container_width=True)
         st.download_button('Download forecast CSV',fc.to_csv(index=False),file_name='nfl_forecasts.csv',mime='text/csv')
-    st.warning('Forecasts are next-appearance estimates, not matchup-adjusted pregame probabilities. Do not treat them as actionable FanDuel lines or combine them into 25× bets.')
+    st.warning('These are experimental next-appearance estimates. Without selecting the actual upcoming opponent, projections are not matchup-specific. They are not calibrated FanDuel betting probabilities or verified 25× parlay edges.')
 else:
     st.info('Open the training panel above and click Train models to start.')
