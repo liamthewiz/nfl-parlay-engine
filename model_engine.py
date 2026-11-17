@@ -119,8 +119,43 @@ def _model():
                                          l2_regularization=10, random_state=42)
 
 
+def attach_player_teams(d, schedule):
+    """Infer each player's team from the scheduled opponent and game.
+
+    A player's opponent determines the player's own team for that game.
+    Unmatched rows remain missing; we never guess a team.
+    """
+    required = {'season', 'week', 'home_team', 'away_team'}
+    if not required.issubset(schedule.columns):
+        raise ValueError('Schedule lacks columns needed to map player teams')
+    games = schedule[['season', 'week', 'home_team', 'away_team']].copy()
+    games = games.drop_duplicates(['season', 'week', 'home_team', 'away_team'])
+    home_opponents = games.rename(columns={
+        'home_team': 'recent_team', 'away_team': 'opponent_team'
+    })
+    away_opponents = games.rename(columns={
+        'away_team': 'recent_team', 'home_team': 'opponent_team'
+    })
+    mapping = pd.concat([home_opponents, away_opponents], ignore_index=True)
+    mapping = mapping.drop_duplicates(['season', 'week', 'opponent_team'])
+    if 'recent_team' in d.columns:
+        d = d.drop(columns=['recent_team'])
+    result = d.merge(mapping, on=['season', 'week', 'opponent_team'],
+                     how='left', validate='many_to_one')
+    missing = result.recent_team.isna().sum()
+    if missing:
+        raise ValueError(
+            f'Cannot map teams for {missing} player rows. Check schedule '
+            'coverage and team abbreviations before training.'
+        )
+    return result
+
+
 def train_models(raw, schedule=None):
     d = prepare(raw)
+    if schedule is None:
+        raise ValueError('V3 requires the historical schedule.')
+    d = attach_player_teams(d, schedule)
     if (d.season == 2025).sum() < 100:
         raise ValueError('2025 holdout data unavailable. Seasons: ' +
                          str(sorted(d.season.unique().tolist())))
