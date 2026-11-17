@@ -151,7 +151,7 @@ def attach_player_teams(d, schedule):
     return result
 
 
-def train_models(raw, schedule=None):
+def train_models(raw, schedule=None, return_residuals=False):
     d = prepare(raw)
     if schedule is None:
         raise ValueError('V3 requires the historical schedule.')
@@ -159,7 +159,7 @@ def train_models(raw, schedule=None):
     if (d.season == 2025).sum() < 100:
         raise ValueError('2025 holdout data unavailable. Seasons: ' +
                          str(sorted(d.season.unique().tolist())))
-    report, models = [], {}
+    report, models, residuals = [], {}, {}
     if schedule is None:
         raise ValueError('V3 requires the historical schedule. Download it before training.')
     for market, (target, positions) in MARKETS.items():
@@ -187,6 +187,7 @@ def train_models(raw, schedule=None):
             scores[label] = (mean_absolute_error(valid[target], pred),
                              float(np.std(valid[target].to_numpy() - pred)))
             if label == 'Context V3':
+                residuals[market] = (valid[target].to_numpy(dtype=float) - pred).copy()
                 final = _model()
                 final.fit(frame[columns], frame[target])
                 models[market] = (final, scores[label][1])
@@ -200,6 +201,8 @@ def train_models(raw, schedule=None):
             'Matchup model MAE': round(scores['Matchup ML'][0], 2),
             'Context V3 MAE': round(scores['Context V3'][0], 2),
         })
+    if return_residuals:
+        return pd.DataFrame(report), models, d, residuals
     return pd.DataFrame(report), models, d
 
 

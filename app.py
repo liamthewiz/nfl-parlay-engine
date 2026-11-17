@@ -7,8 +7,11 @@ st.title('🏈 NFL Parlay Prediction Engine')
 st.caption('FanDuel research · flexible 2–8 legs · target 10×–25× · paper trading')
 
 from v4_parlays import research_tab
+from v5_probabilities import v5_tab
 
-t1,t2,t3 = st.tabs(['V4 Parlay Research','Game Research','Results Tracker'])
+t0,t1,t2,t3 = st.tabs(['V5 Auto Prop Research','V4 Manual Research','Game Research','Results Tracker'])
+with t0:
+    v5_tab()
 with t1:
     research_tab()
 with t2:
@@ -36,11 +39,12 @@ with st.expander('Train historical NFL player-stat models', expanded=False):
                 raw = pd.read_csv(upload,low_memory=False) if upload is not None else download_data()
                 st.session_state["nfl_data_diagnostics"] = data_diagnostics(raw)
                 schedule = download_schedule()
-                report, models, clean = train_models(raw, schedule=schedule)
+                report, models, clean, residuals = train_models(raw, schedule=schedule, return_residuals=True)
                 st.session_state['nfl_schedule'] = schedule
                 st.session_state['nfl_model_report'] = report
                 st.session_state['nfl_models'] = models
                 st.session_state['nfl_training_data'] = clean
+                st.session_state['nfl_holdout_residuals'] = residuals
             st.success('Training complete. Review the 2025 holdout comparison below.')
         except Exception as exc:
             st.error(f'Training could not complete: {exc}')
