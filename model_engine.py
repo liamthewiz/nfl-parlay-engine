@@ -6,14 +6,60 @@ import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error
 
-DATA_URL = 'https://github.com/nflverse/nflverse-data/releases/download/player_stats/player_stats.csv'
+DATA_URL = (
+    "https://github.com/nflverse/nflverse-data/"
+    "releases/download/stats_player/"
+    "stats_player_week_{season}.csv"
+)
 MARKETS = {'Passing yards':('passing_yards',['QB']), 'Rushing yards':('rushing_yards',['RB','QB']), 'Receiving yards':('receiving_yards',['WR','TE','RB']), 'Receptions':('receptions',['WR','TE','RB'])}
 FEATURES = ['lag1','avg3','avg5','avg10','games_played','season_week']
 
 def download_data():
-    r=requests.get(DATA_URL,timeout=90,headers={'User-Agent':'nfl-parlay-research/1.0'})
-    r.raise_for_status()
-    return pd.read_csv(io.BytesIO(r.content),low_memory=False)
+    frames = []
+    failed = []
+
+    for season in range(2021, 2027):
+        url = DATA_URL.format(season=season)
+
+        try:
+            response = requests.get(
+                url,
+                timeout=90,
+                headers={
+                    "User-Agent": "nfl-parlay-research/1.0"
+                }
+            )
+            response.raise_for_status()
+
+            df = pd.read_csv(
+                io.BytesIO(response.content),
+                low_memory=False
+            )
+
+            if df.empty:
+                raise ValueError("Empty season file")
+
+            df["season"] = season
+            frames.append(df)
+
+        except (requests.RequestException, ValueError) as e:
+            failed.append(f"{season}: {e}")
+
+    if failed:
+        raise ValueError(
+            "NFL season downloads failed: "
+            + " | ".join(failed)
+        )
+
+    data = pd.concat(frames, ignore_index=True)
+
+    print(
+        "Downloaded records by season:",
+        data.groupby("season").size().to_dict()
+    )
+
+    return data
+
 
 def prepare(df):
     required=['player_id','player_display_name','season','week','position']+[v[0] for v in MARKETS.values()]
@@ -48,7 +94,12 @@ def train_models(raw):
     seasons=sorted(int(s) for s in d.season.unique())
     eligible=[s for s in seasons if s>=2023 and s<=2026]
     if not eligible: raise ValueError(f'No eligible holdout season (2023–2026). Available seasons: {seasons}')
-    holdout=2025 if 2025 in eligible and (d.season==2025).sum()>=100 else max(eligible)
+   holdout = 2025
+
+if (d.season == 2025).sum() < 100:
+    raise ValueError(
+        "Insufficient 2025 data. Check the season downloads."
+    )
     results=[]; models={}
     for market,(target,positions) in MARKETS.items():
         subset=d[d.position.isin(positions)].copy()
