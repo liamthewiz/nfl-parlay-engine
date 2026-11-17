@@ -423,4 +423,4 @@ def forecasts(
             ascending=False
         )
     )
-ojected next-game value',ascending=False)
+'projected next-game value',ascending=False)
