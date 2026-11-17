@@ -64,9 +64,10 @@ with st.expander('Train historical NFL player-stat models', expanded=False):
     upload = st.file_uploader('Upload player_stats.csv', type='csv') if source.startswith('Upload') else None
     if st.button('Train models', type='primary'):
         try:
-            from model_engine import download_data, train_models
+            from model_engine import download_data, train_models, data_diagnostics
             with st.spinner('Loading historical games and fitting four models...'):
                 raw = pd.read_csv(upload,low_memory=False) if upload is not None else download_data()
+                st.session_state["nfl_data_diagnostics"] = data_diagnostics(raw)
                 report, models, clean = train_models(raw)
                 st.session_state['nfl_model_report'] = report
                 st.session_state['nfl_models'] = models
@@ -74,10 +75,13 @@ with st.expander('Train historical NFL player-stat models', expanded=False):
             st.success('Training complete. Review 2025 validation errors below.')
         except Exception as exc:
             st.error(f'Training could not complete: {exc}')
+            if 'nfl_data_diagnostics' in st.session_state:
+                st.write('Available records by season and position:')
+                st.dataframe(st.session_state['nfl_data_diagnostics'])
 if 'nfl_model_report' in st.session_state:
-    st.subheader('2025 holdout validation')
+    st.subheader('Historical holdout validation')
     st.dataframe(st.session_state['nfl_model_report'], hide_index=True, use_container_width=True)
-    st.caption('MAE is mean absolute error in yards (or catches for receptions). Lower is better. Training uses 2021–2024 only; 2025 is untouched holdout data.')
+    st.caption('MAE is mean absolute error in yards (or catches for receptions). Lower is better. The holdout season is listed in the table; only prior seasons are used for training.')
     market = st.selectbox('Forecast market', list(st.session_state['nfl_models']))
     season = st.selectbox('Latest season to forecast from', [2026,2025])
     from model_engine import forecasts
