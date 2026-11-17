@@ -54,3 +54,39 @@ with t3:
     st.write('Record completed test parlays here; keep odds and probability estimates captured before kickoff.')
     st.dataframe(pd.DataFrame(columns=['Date','Matchup','Legs','Quoted odds','Predicted joint probability','Result','Stake','Profit / loss']), use_container_width=True)
     st.caption('Persistent storage and backtesting will be added in the next development stage.')
+
+st.divider()
+st.header('🧠 NFL Model Training Lab — V1')
+st.caption('Experimental statistical forecasts. No opponent, injuries, live odds, correlated simulations, or verified betting edge yet.')
+with st.expander('Train historical NFL player-stat models', expanded=False):
+    st.write('Use the official nflverse player-stats CSV, or upload a previously downloaded copy. Training runs in memory on this Streamlit session.')
+    source = st.radio('Data source', ['Download nflverse CSV', 'Upload nflverse CSV'], horizontal=True)
+    upload = st.file_uploader('Upload player_stats.csv', type='csv') if source.startswith('Upload') else None
+    if st.button('Train models', type='primary'):
+        try:
+            from model_engine import download_data, train_models
+            with st.spinner('Loading historical games and fitting four models...'):
+                raw = pd.read_csv(upload,low_memory=False) if upload is not None else download_data()
+                report, models, clean = train_models(raw)
+                st.session_state['nfl_model_report'] = report
+                st.session_state['nfl_models'] = models
+                st.session_state['nfl_training_data'] = clean
+            st.success('Training complete. Review 2025 validation errors below.')
+        except Exception as exc:
+            st.error(f'Training could not complete: {exc}')
+if 'nfl_model_report' in st.session_state:
+    st.subheader('2025 holdout validation')
+    st.dataframe(st.session_state['nfl_model_report'], hide_index=True, use_container_width=True)
+    st.caption('MAE is mean absolute error in yards (or catches for receptions). Lower is better. Training uses 2021–2024 only; 2025 is untouched holdout data.')
+    market = st.selectbox('Forecast market', list(st.session_state['nfl_models']))
+    season = st.selectbox('Latest season to forecast from', [2026,2025])
+    from model_engine import forecasts
+    fc = forecasts(st.session_state['nfl_models'],st.session_state['nfl_training_data'],market,season)
+    if fc.empty:
+        st.info('No games found for that season. Try 2025, or upload newer weekly data.')
+    else:
+        st.dataframe(fc.head(100),hide_index=True,use_container_width=True)
+        st.download_button('Download forecast CSV',fc.to_csv(index=False),file_name='nfl_forecasts.csv',mime='text/csv')
+    st.warning('Forecasts are next-appearance estimates, not matchup-adjusted pregame probabilities. Do not treat them as actionable FanDuel lines or combine them into 25× bets.')
+else:
+    st.info('Open the training panel above and click Train models to start.')
