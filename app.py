@@ -1,0 +1,56 @@
+import math
+import streamlit as st
+import pandas as pd
+
+st.set_page_config(page_title='NFL Parlay Prediction Engine', page_icon='🏈', layout='wide')
+st.title('🏈 NFL Parlay Prediction Engine')
+st.caption('FanDuel · 5–8 legs · target 25×+ · prototype / paper trading')
+
+with st.sidebar:
+    st.header('Settings')
+    min_legs = st.slider('Minimum legs', 5, 8, 5)
+    stake = st.number_input('Hypothetical stake ($)', min_value=0.0, value=10.0, step=5.0)
+    target = st.number_input('Minimum payout multiplier', min_value=25.0, value=25.0)
+    st.info('This prototype does not fetch live games or predict outcomes. Enter your own estimates; results are illustrative.')
+
+if 'legs' not in st.session_state:
+    st.session_state.legs = pd.DataFrame([
+        {'Game':'', 'Player':'', 'Market':'Passing yards over', 'Line':0.0, 'Estimated hit probability':0.60},
+        {'Game':'', 'Player':'', 'Market':'Rushing yards over', 'Line':0.0, 'Estimated hit probability':0.60},
+        {'Game':'', 'Player':'', 'Market':'Receiving yards over', 'Line':0.0, 'Estimated hit probability':0.60},
+        {'Game':'', 'Player':'', 'Market':'Receptions over', 'Line':0.0, 'Estimated hit probability':0.60},
+        {'Game':'', 'Player':'', 'Market':'Anytime touchdown', 'Line':0.0, 'Estimated hit probability':0.30},
+    ])
+
+t1,t2,t3 = st.tabs(['Parlay Builder','Game Research','Results Tracker'])
+with t1:
+    st.subheader('Build a candidate parlay')
+    st.write('Edit the legs and your probability estimates. These estimates are **not model-generated** yet.')
+    df = st.data_editor(st.session_state.legs, num_rows='dynamic', use_container_width=True,
+        column_config={'Estimated hit probability':st.column_config.NumberColumn(min_value=0.001,max_value=0.999,step=0.01,format='%.3f')}, key='editor')
+    combined = st.number_input('Actual FanDuel combined decimal odds (e.g. 25.0)', min_value=1.01, value=25.0, step=1.0)
+    st.warning('Multiplying individual probabilities assumes independence. Same-game NFL props are often correlated. The result below is a rough illustration, NOT a calibrated joint probability or betting edge.')
+    valid = min_legs <= len(df) <= 8 and df['Estimated hit probability'].between(0,1,inclusive='neither').all()
+    if not valid:
+        st.error(f'Enter {min_legs}–8 legs with probabilities strictly between 0 and 1.')
+    else:
+        p = math.prod(df['Estimated hit probability'].astype(float))
+        ev = p*combined-1
+        a,b,c = st.columns(3)
+        a.metric('Independence-based hit chance', f'{p:.2%}')
+        b.metric('Total payout', f'${stake*combined:,.2f}')
+        c.metric('Illustrative expected ROI', f'{ev:+.1%}')
+        if combined < target:
+            st.error(f'Below target: {combined:.1f}× vs {target:.1f}× minimum.')
+        else:
+            st.success('Payout threshold met. This does NOT mean the parlay has positive value.')
+        st.caption(f'Break-even probability at these odds: {1/combined:.2%}. The true joint probability must be estimated with a validated correlated simulation model.')
+with t2:
+    st.subheader('Game Research — planned integration')
+    st.write('Upcoming fixtures, injury reports, weather, team pace, pass rate over expected, defensive efficiency and matchup-adjusted player distributions will appear here once data feeds are configured.')
+    st.info('No live data source is connected in this prototype.')
+with t3:
+    st.subheader('Paper-trading log')
+    st.write('Record completed test parlays here; keep odds and probability estimates captured before kickoff.')
+    st.dataframe(pd.DataFrame(columns=['Date','Matchup','Legs','Quoted odds','Predicted joint probability','Result','Stake','Profit / loss']), use_container_width=True)
+    st.caption('Persistent storage and backtesting will be added in the next development stage.')
